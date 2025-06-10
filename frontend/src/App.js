@@ -238,7 +238,7 @@ function App() {
 
       // --- NEW LOGIC FOR "WHO CREATED YOU" QUESTIONS (STRICT MATCH) ---
       const creatorQuestions = [
-        "who created you", "who made you", "who is your creator",
+        "who created you", "who made you", "who is your creator", "who make this",
         "who built you", "who designed you", "who named you",
         "your creator", "your name giver", "who created this chatbot",
         "who made this chatbot", "creator of this chatbot",
