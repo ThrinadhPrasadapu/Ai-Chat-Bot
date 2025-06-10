@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react"; // 'useMemo' removed
 import { SunIcon, MoonIcon, PaperAirplaneIcon, StopIcon, PlusIcon, SparklesIcon, ChevronDownIcon, BoltIcon, RocketLaunchIcon, UserIcon } from "@heroicons/react/24/solid";
 
 // --- New Feature: AI Personalities & User Memory ---
@@ -14,7 +14,7 @@ const AI_PERSONALITIES = {
     icon: <BoltIcon className="h-4 w-4 mr-1" />,
   },
   TECHNICAL: {
-    name: "Muse (Technical)",
+    name: "Muse (Technical)", // Corrected name for consistency
     prompt: "You are Muse, a precise and logical AI assistant. Focus on factual accuracy and technical details.",
     icon: <RocketLaunchIcon className="h-4 w-4 mr-1" />,
   },
@@ -23,15 +23,13 @@ const AI_PERSONALITIES = {
 function App() {
   const [message, setMessage] = useState("");
 
- const [chatLog, setChatLog] = useState(() => {
-
+  const [chatLog, setChatLog] = useState(() => {
     try {
       const savedChat = localStorage.getItem("chatLog");
       if (savedChat) {
-
         return JSON.parse(savedChat).map(msg => ({
           ...msg,
-          timestamp: new Date(msg.timestamp) // This line is the fix!
+          timestamp: new Date(msg.timestamp)
         }));
       }
       return [];
@@ -74,13 +72,10 @@ function App() {
   const botReplyAddedRef = useRef(false);
   const fileInputRef = useRef(null);
 
-
   const isScrolledUpRef = useRef(false);
-
 
   useEffect(() => {
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
-    // Apply class to body for better global styling control (e.g., scrollbar color)
     if (darkMode) {
       document.body.classList.add("dark-mode");
       document.body.classList.remove("light-mode");
@@ -107,7 +102,6 @@ function App() {
   useEffect(() => {
     const chatBox = chatBoxRef.current;
     if (chatBox) {
-
       const atBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 100; // 100px tolerance
       if (!isScrolledUpRef.current || atBottom) {
         chatBox.scrollTop = chatBox.scrollHeight;
@@ -132,7 +126,7 @@ function App() {
   }, []);
 
   // --- UI/UX Enhancement: Typing Animation logic refined ---
-const typeEffect = useCallback((fullText) => {
+  const typeEffect = useCallback((fullText) => {
     return new Promise((resolve) => {
       const words = fullText.split(' '); // Split the text into words
       let wordIndex = 0;
@@ -165,7 +159,7 @@ const typeEffect = useCallback((fullText) => {
             typingIntervalRef.current = null;
             resolve();
         }
-      }, 150); // Adjust this speed (e.g., 70ms-150ms per word)
+      }, 70); // Adjust this speed (e.g., 70ms-150ms per word)
     });
   }, []);
 
@@ -258,71 +252,82 @@ const typeEffect = useCallback((fullText) => {
         });
       }
 
-          const chatHistoryForAPI = [];
+      const chatHistoryForAPI = [];
 
-    // Construct the initial system message that will be prepended
-    let systemInstruction = AI_PERSONALITIES[selectedPersonality].prompt;
+      // Construct the initial system message that will be prepended
+      let systemInstruction = AI_PERSONALITIES[selectedPersonality].prompt;
 
-    if (Object.keys(userMemory).length > 0) {
-      systemInstruction += `\nUser's persistent memory: ${JSON.stringify(userMemory)}.`;
-    }
+      if (Object.keys(userMemory).length > 0) {
+        systemInstruction += `\nUser's persistent memory: ${JSON.stringify(userMemory)}.`;
+      }
 
-    // Now, add the previous conversation turns
-    chatLog.forEach(msg => {
-        // IMPORTANT: For the first message that ISN'T a system message,
-        // we'll combine it with our system instruction.
-        // We'll also convert the bot's 'sender' to 'model' for the API.
-        if (msg.sender === "user") {
-            // If this is the *very first* user message in the chatLog
-            // and we have system instructions, prepend them.
-            if (chatHistoryForAPI.length === 0) {
-                chatHistoryForAPI.push({
-                    role: "user",
-                    parts: [{ text: `${systemInstruction}\n${msg.text}` }]
-                });
-            } else {
-                chatHistoryForAPI.push({
-                    role: "user",
-                    parts: [{ text: msg.text }]
-                });
-            }
-        } else if (msg.sender === "bot") {
-            chatHistoryForAPI.push({
-                role: "model",
-                parts: [{ text: msg.text }]
-            });
-        }
-    });
+      let firstMessageProcessed = false; // Flag to ensure system instruction is added only once to the first user message
 
-    // Add the current user input
-    // If the chat log was empty (brand new conversation), this will be the first message.
-    // So, prepend system instructions here as well.
-    if (chatHistoryForAPI.length === 0) { // If no previous messages, this is the first turn
-        chatHistoryForAPI.push({
-            role: "user",
-            parts: [{ text: `${systemInstruction}\n${currentInputParts[0]?.text || ''}` }] // currentInputParts might be empty if only file
-        });
-        // Handle files if this was the very first message with a file
-        if (currentInputParts.length > 1) { // If there's a text part AND an inlineData part
-            chatHistoryForAPI[0].parts.push(currentInputParts[1]);
-        } else if (currentInputParts[0]?.inlineData) { // If only an inlineData part
-            chatHistoryForAPI[0].parts = [{text: systemInstruction}, currentInputParts[0]];
-        }
+      // Add previous conversation turns, prepending system instruction to the first user message
+      chatLog.forEach(msg => {
+          if (msg.sender === "user") {
+              if (!firstMessageProcessed) {
+                  chatHistoryForAPI.push({
+                      role: "user",
+                      parts: [{ text: `${systemInstruction}\n${msg.text}` }]
+                  });
+                  firstMessageProcessed = true;
+              } else {
+                  chatHistoryForAPI.push({
+                      role: "user",
+                      parts: [{ text: msg.text }]
+                  });
+              }
+          } else if (msg.sender === "bot") { // Bot messages are converted to 'model' role
+              chatHistoryForAPI.push({
+                  role: "model",
+                  parts: [{ text: msg.text }]
+              });
+          }
+      });
 
-    } else { // Not the first message, just add the current user input normally
-        chatHistoryForAPI.push({ role: "user", parts: currentInputParts });
-    }
+      // Add the current user input
+      // If no previous messages have been added (i.e., this is the very first turn),
+      // prepend system instructions to the current user input.
+      if (!firstMessageProcessed) { // This means chatLog was empty (brand new conversation)
+          const firstUserMessageParts = [];
+          if (messageToSend) { // If there's text input from the user
+              firstUserMessageParts.push({ text: `${systemInstruction}\n${messageToSend}` });
+          } else { // If no text, just the system instruction (e.g., first message is just a file)
+              firstUserMessageParts.push({ text: systemInstruction });
+          }
 
-    const payload = {
-        contents: chatHistoryForAPI, // This is now correct for Gemini
+          // Append file if present
+          if (selectedFile) {
+              const reader = new FileReader();
+              const fileBase64 = await new Promise((resolve, reject) => {
+                  reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(selectedFile);
+              });
+              firstUserMessageParts.push({
+                  inlineData: {
+                      mimeType: selectedFile.type,
+                      data: fileBase64,
+                  },
+              });
+          }
+          chatHistoryForAPI.push({ role: "user", parts: firstUserMessageParts });
+
+      } else { // Not the very first user message in the history, just add current input normally
+          chatHistoryForAPI.push({ role: "user", parts: currentInputParts });
+      }
+
+      const payload = {
+        contents: chatHistoryForAPI,
         generationConfig: {
             temperature: 0.7,
             topK: 40,
             topP: 0.95,
         },
-    };
+      };
 
-      const apiKey = "AIzaSyC5xZZf8IxaylTBd90hWQ-VdiTVHQJ-gYQ"; // Placeholder - REPLACE WITH YOUR ACTUAL API KEY
+      const apiKey = "AIzaSyA9kMJt63VaOeWxr8gooyUJBWOVOd5ceII"; // Placeholder - REPLACE WITH YOUR ACTUAL API KEY
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
@@ -332,7 +337,6 @@ const typeEffect = useCallback((fullText) => {
         signal,
       });
 
-      // --- Backend Fixes: Improved Error Messages & Loading Indicator ---
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
@@ -348,24 +352,20 @@ const typeEffect = useCallback((fullText) => {
       } else if (result.error) {
         replyText = `Error from API: ${result.error.message}`;
       } else {
-        // Fallback for unexpected API response structure
         replyText = "An unexpected response was received from Muse. Please try again.";
       }
 
-      // Check if the signal was aborted before starting typeEffect
       if (!signal.aborted) {
         await typeEffect(replyText); // Wait for typing effect to complete
       } else {
         setBotTypingText("");
       }
 
-
       const nameMatch = messageToSend.match(/(?:my name is|I'm)\s+([A-Z][a-z]+)/i);
       if (nameMatch) {
         const userName = nameMatch[1];
         setUserMemory(prev => ({ ...prev, name: userName }));
       }
-
 
     } catch (error) {
       if (error.name !== "AbortError") {
@@ -376,7 +376,6 @@ const typeEffect = useCallback((fullText) => {
         setChatLog((prev) => [...prev, { sender: "bot", text: errorMsg, timestamp: new Date() }]);
       }
     } finally {
-      // Clean up, ensuring the botReplyAddedRef is reset for the next message
       if (!botReplyAddedRef.current && botTypingText.trim() !== "") {
           setChatLog((prev) => [...prev, { sender: "bot", text: botTypingText, timestamp: new Date() }]);
       }
@@ -386,29 +385,11 @@ const typeEffect = useCallback((fullText) => {
       typingIntervalRef.current = null;
       botReplyAddedRef.current = false; // Reset for next message
     }
-  }, [message, loading, chatLog, typeEffect, selectedFile, botTypingText, selectedPersonality, userMemory]); // Added dependencies
-
-  // --- New Feature: Quick Reply Suggestions ---
-  const quickReplySuggestions = useMemo(() => {
-    // Generate suggestions based on the last bot message or general prompts
-    const lastBotMessage = chatLog.slice().reverse().find(msg => msg.sender === 'bot');
-    if (lastBotMessage) {
-      const text = lastBotMessage.text.toLowerCase();
-      if (text.includes("hello") || text.includes("hi")) {
-        return ["How are you?", "Tell me more.", "What can you do?"];
-      } else if (text.includes("help")) {
-        return ["Can you provide an example?", "What are the steps?", "Explain in more detail."];
-      } else if (text.includes("thank you") || text.includes("bye")) {
-        return ["You're welcome!", "Glad I could help!", "See you later!"];
-      }
-    }
-    // Default suggestions if no specific context
-    return ["Tell me a joke.", "What's the weather?", "Summarize this topic."];
-  }, [chatLog]);
+  }, [message, loading, chatLog, typeEffect, selectedFile, botTypingText, selectedPersonality, userMemory]);
 
   return (
     <div
-      className={`min-h-screen flex flex-col items-center justify-between p-4 pb-0 relative font-inter transition-all duration-500 ease-in-out cursor-default
+      className={`h-screen flex flex-col items-center p-4 pb-0 relative font-inter transition-all duration-500 ease-in-out cursor-default
         ${darkMode
           ? "bg-gradient-to-br from-gray-900 to-black text-gray-100"
           : "bg-gradient-to-br from-blue-100 to-purple-200 text-gray-900"
@@ -542,25 +523,6 @@ const typeEffect = useCallback((fullText) => {
         )}
       </div>
 
-      {/* --- New Feature: Quick Reply Suggestions --- */}
-      {quickReplySuggestions.length > 0 && !loading && (
-        <div className="w-full max-w-3xl flex flex-wrap justify-center gap-2 sm:gap-3 px-2 mb-4">
-          {quickReplySuggestions.map((suggestion, index) => (
-            <button
-              key={index}
-              onClick={() => sendMessage(suggestion)}
-              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm shadow-md transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95
-                ${darkMode
-                  ? "bg-gray-700 text-gray-200 hover:bg-gray-600"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Input Area */}
       <div className={`w-full max-w-3xl flex items-center gap-2 sm:gap-3 p-2 rounded-xl shadow-xl backdrop-blur-lg
         ${darkMode ? "bg-gray-800/70 border border-purple-700/50" : "bg-white/80 border border-blue-300/50"}
@@ -572,7 +534,7 @@ const typeEffect = useCallback((fullText) => {
           ref={fileInputRef}
           onChange={handleFileChange}
           style={{ display: 'none' }}
-          accept="image/*, application/pdf, .txt, audio/*, video/*" // Broaden accepted file types
+          accept="image/*, application/pdf, .txt, audio/*, video/*"
         />
 
         {/* Plus Icon Button (for attachments) */}
