@@ -1,5 +1,5 @@
 [build]
   base = "frontend"
   command = "npm run build"
-  publish = "build" # Corrected: This means 'frontend/build' relative to the repo root
-  functions = "frontend/netlify/functions" # Optional, if you have functions
+  publish = "build"
+  functions = "frontend/netlify/functions" # Keep this line if you plan to use functions, otherwise you can remove it.
