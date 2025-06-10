@@ -4,18 +4,18 @@ import { SunIcon, MoonIcon, PaperAirplaneIcon, StopIcon, PlusIcon, SparklesIcon,
 // --- New Feature: AI Personalities & User Memory ---
 const AI_PERSONALITIES = {
   DEFAULT: {
-    name: "Muse (Default)",
-    prompt: "You are Muse, a helpful and friendly AI assistant. Keep your responses concise and informative.",
+    name: " (Default)",
+    prompt: "You are Nexus, a helpful and friendly AI assistant. Keep your responses concise and informative.",
     icon: <SparklesIcon className="h-4 w-4 mr-1" />,
   },
   CREATIVE: {
-    name: "Muse (Creative)",
-    prompt: "You are Muse, a highly creative and imaginative AI assistant. Explore novel ideas and think outside the box.",
+    name: "Nexus(Creative)",
+    prompt: "You are Nexus, a highly creative and imaginative AI assistant. Explore novel ideas and think outside the box.",
     icon: <BoltIcon className="h-4 w-4 mr-1" />,
   },
   TECHNICAL: {
-    name: "Muse (Technical)", // Corrected name for consistency
-    prompt: "You are Muse, a precise and logical AI assistant. Focus on factual accuracy and technical details.",
+    name: "Nexus (Technical)", // Corrected name for consistency
+    prompt: "You are Nexus, a precise and logical AI assistant. Focus on factual accuracy and technical details.",
     icon: <RocketLaunchIcon className="h-4 w-4 mr-1" />,
   },
 };
@@ -343,7 +343,7 @@ function App() {
       }
 
       const result = await response.json();
-      let replyText = "Sorry, I couldn't get a response from Muse."; // Default error message
+      let replyText = "Sorry, I couldn't get a response from Nexus."; // Default error message
 
       if (result.candidates && result.candidates.length > 0 &&
           result.candidates[0].content && result.candidates[0].content.parts &&
@@ -352,7 +352,7 @@ function App() {
       } else if (result.error) {
         replyText = `Error from API: ${result.error.message}`;
       } else {
-        replyText = "An unexpected response was received from Muse. Please try again.";
+        replyText = "An unexpected response was received from Nexus. Please try again.";
       }
 
       if (!signal.aborted) {
@@ -369,9 +369,9 @@ function App() {
 
     } catch (error) {
       if (error.name !== "AbortError") {
-        let errorMsg = `Error connecting to Muse: ${error.message || "Please check your network."}`;
+        let errorMsg = `Error connecting to Nexus: ${error.message || "Please check your network."}`;
         if (error.message.includes("API Error")) {
-            errorMsg = `Muse encountered an issue: ${error.message}. Please try again later.`;
+            errorMsg = `Nexus encountered an issue: ${error.message}. Please try again later.`;
         }
         setChatLog((prev) => [...prev, { sender: "bot", text: errorMsg, timestamp: new Date() }]);
       }
@@ -442,7 +442,7 @@ function App() {
 
       {/* Title */}
       <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 sm:mb-8 drop-shadow-lg select-none text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse-light text-center">
-        Muse AI
+        Nexus AI
       </h1>
 
       {/* Chat Box */}
@@ -458,7 +458,7 @@ function App() {
       >
         {chatLog.length === 0 && !loading && (
           <div className="text-center text-gray-400 italic mt-10 sm:mt-20 text-sm sm:text-base">
-            Start a conversation with Muse!
+            Start a conversation with Nexus!
             {userMemory.name && (
               <p className="mt-2">Welcome back, {userMemory.name}!</p>
             )}
@@ -477,7 +477,7 @@ function App() {
                 : darkMode ? "text-purple-300" : "text-purple-600"
             }`}>
               {msg.sender === "user" ? <UserIcon className="h-3 w-3 mr-1" /> : AI_PERSONALITIES[selectedPersonality].icon}
-              {msg.sender === "user" ? (userMemory.name || "You") : "Muse"}
+              {msg.sender === "user" ? (userMemory.name || "You") : "Nexus"}
               <span className="ml-2 text-xs opacity-50">
                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -500,7 +500,7 @@ function App() {
         {loading && botTypingText && (
           <div className="flex flex-col max-w-[90%] sm:max-w-[75%] mr-auto items-start text-sm sm:text-base">
             <span className={`text-xs font-medium mb-1 opacity-70 flex items-center ${darkMode ? "text-purple-300" : "text-purple-600"}`}>
-              {AI_PERSONALITIES[selectedPersonality].icon}Muse
+              {AI_PERSONALITIES[selectedPersonality].icon}Nexus
             </span>
             <div
               className={`px-4 py-2 sm:px-5 sm:py-3 rounded-2xl italic break-words whitespace-pre-wrap shadow-md ${
@@ -555,7 +555,7 @@ function App() {
         <input
           type="text"
           value={message}
-          placeholder={"Type your message to Muse..."}
+          placeholder={"Type your message to Nexus..."}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
