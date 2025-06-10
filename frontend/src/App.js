@@ -159,7 +159,7 @@ function App() {
             typingIntervalRef.current = null;
             resolve();
         }
-      }, 70); // Adjust this speed (e.g., 70ms-150ms per word)
+      }, 1); // Adjust this speed (e.g., 70ms-150ms per word)
     });
   }, []);
 
