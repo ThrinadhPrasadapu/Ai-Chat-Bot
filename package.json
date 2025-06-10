@@ -1,7 +1,17 @@
 {
+  "name": "your-project-name",
+  "version": "1.0.0",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --minify",
+    "watch:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
+  },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.4",
     "tailwindcss": "^4.1.8"
+  },
+  "dependencies": {
+    "firebase": "^11.9.0",
+    "react-speech-recognition": "^4.0.1"
   }
 }
