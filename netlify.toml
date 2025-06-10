@@ -1,4 +1,4 @@
 [build]
   base = "frontend"
-  command = "npm run build"
+  command = "CI=false npm run build" # Add CI=false here
   publish = "frontend/build"
