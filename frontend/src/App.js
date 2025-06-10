@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react"; // 'useMemo' removed
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { SunIcon, MoonIcon, PaperAirplaneIcon, StopIcon, PlusIcon, SparklesIcon, ChevronDownIcon, BoltIcon, RocketLaunchIcon, UserIcon } from "@heroicons/react/24/solid";
 
 // --- New Feature: AI Personalities & User Memory ---
@@ -65,6 +65,9 @@ function App() {
       : "DEFAULT";
   });
   const [showPersonalityDropdown, setShowPersonalityDropdown] = useState(false);
+
+  // --- YOUR NAME HERE ---
+  const creatorName = "Mark Dennis V. Manangan"; // <--- Your full name
 
   const chatBoxRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -159,7 +162,7 @@ function App() {
             typingIntervalRef.current = null;
             resolve();
         }
-      }, 1); // Adjust this speed (e.g., 70ms-150ms per word)
+      }, 5); // Adjust this speed (e.g., 70ms-150ms per word). Changed from 1ms to 70ms for better animation.
     });
   }, []);
 
@@ -190,7 +193,7 @@ function App() {
     if (file) {
       setSelectedFile(file);
       // Optional: Clear message input if a file is selected only if it's not already typed
-      if (!message.trim()) {
+      if (!message.trim()) { // Only clear if message is empty
         setMessage("");
       }
     }
@@ -231,12 +234,57 @@ function App() {
     const signal = abortControllerRef.current.signal;
 
     try {
+      const lowerCaseMessage = messageToSend.toLowerCase();
+
+      // --- NEW LOGIC FOR "WHO CREATED YOU" QUESTIONS (STRICT MATCH) ---
+      const creatorQuestions = [
+        "who created you", "who made you", "who is your creator",
+        "who built you", "who designed you", "who named you",
+        "your creator", "your name giver", "who created this chatbot",
+        "who made this chatbot", "creator of this chatbot",
+        "who built this webapp", "who developed this webapp",
+        "this webapp created by", "who created this ai", "who made this ai",
+      ];
+
+      const isCreatorQuestion = creatorQuestions.some(phrase => lowerCaseMessage.includes(phrase));
+
+      if (isCreatorQuestion) {
+        const creatorReply = `I was created and named by ${creatorName}!`;
+        await typeEffect(creatorReply);
+        setLoading(false);
+        setBotTypingText("");
+        botReplyAddedRef.current = true;
+        return; // Stop here, don't call Gemini API
+      }
+      // --- END NEW LOGIC FOR "WHO CREATED YOU" QUESTIONS ---
+
+      // --- NEW LOGIC FOR CREATOR NAME MENTION (REQUIRING CONTEXT) ---
+      const markIdentityQuestions = [
+        "who is mark", "is mark your creator", "did mark create you",
+        "tell me about mark", "who is manangan", "is manangan your developer",
+        "who developed you mark", "who designed you mark", "mark developer", "mark creator",
+        "who is mark dennis manangan", "about mark dennis v. manangan"
+      ].map(phrase => phrase.toLowerCase());
+
+      const isMarkIdentityQuestion = markIdentityQuestions.some(phrase => lowerCaseMessage.includes(phrase));
+
+      if (isMarkIdentityQuestion) {
+        const markReply = `${creatorName} is the brilliant mind who created and named me, Nexus AI!`;
+        await typeEffect(markReply);
+        setLoading(false);
+        setBotTypingText("");
+        botReplyAddedRef.current = true;
+        return; // Stop here, don't call Gemini API
+      }
+      // --- END NEW LOGIC FOR CREATOR NAME MENTION ---
+
+
       const currentInputParts = [];
       if (messageToSend) {
         currentInputParts.push({ text: messageToSend });
       }
       if (selectedFile) {
-        setBotTypingText("Processing file..."); // Show "Processing file..."
+        setBotTypingText("Processing file...");
         const reader = new FileReader();
         const fileBase64 = await new Promise((resolve, reject) => {
           reader.onloadend = () => resolve(reader.result.split(',')[1]);
@@ -261,9 +309,8 @@ function App() {
         systemInstruction += `\nUser's persistent memory: ${JSON.stringify(userMemory)}.`;
       }
 
-      let firstMessageProcessed = false; // Flag to ensure system instruction is added only once to the first user message
+      let firstMessageProcessed = false;
 
-      // Add previous conversation turns, prepending system instruction to the first user message
       chatLog.forEach(msg => {
           if (msg.sender === "user") {
               if (!firstMessageProcessed) {
@@ -278,7 +325,7 @@ function App() {
                       parts: [{ text: msg.text }]
                   });
               }
-          } else if (msg.sender === "bot") { // Bot messages are converted to 'model' role
+          } else if (msg.sender === "bot") {
               chatHistoryForAPI.push({
                   role: "model",
                   parts: [{ text: msg.text }]
@@ -286,18 +333,14 @@ function App() {
           }
       });
 
-      // Add the current user input
-      // If no previous messages have been added (i.e., this is the very first turn),
-      // prepend system instructions to the current user input.
-      if (!firstMessageProcessed) { // This means chatLog was empty (brand new conversation)
+      if (!firstMessageProcessed) {
           const firstUserMessageParts = [];
-          if (messageToSend) { // If there's text input from the user
+          if (messageToSend) {
               firstUserMessageParts.push({ text: `${systemInstruction}\n${messageToSend}` });
-          } else { // If no text, just the system instruction (e.g., first message is just a file)
+          } else {
               firstUserMessageParts.push({ text: systemInstruction });
           }
 
-          // Append file if present
           if (selectedFile) {
               const reader = new FileReader();
               const fileBase64 = await new Promise((resolve, reject) => {
@@ -314,7 +357,7 @@ function App() {
           }
           chatHistoryForAPI.push({ role: "user", parts: firstUserMessageParts });
 
-      } else { // Not the very first user message in the history, just add current input normally
+      } else {
           chatHistoryForAPI.push({ role: "user", parts: currentInputParts });
       }
 
@@ -343,7 +386,7 @@ function App() {
       }
 
       const result = await response.json();
-      let replyText = "Sorry, I couldn't get a response from Nexus."; // Default error message
+      let replyText = "Sorry, I couldn't get a response from Nexus.";
 
       if (result.candidates && result.candidates.length > 0 &&
           result.candidates[0].content && result.candidates[0].content.parts &&
@@ -356,7 +399,7 @@ function App() {
       }
 
       if (!signal.aborted) {
-        await typeEffect(replyText); // Wait for typing effect to complete
+        await typeEffect(replyText);
       } else {
         setBotTypingText("");
       }
@@ -383,9 +426,9 @@ function App() {
       setBotTypingText("");
       abortControllerRef.current = null;
       typingIntervalRef.current = null;
-      botReplyAddedRef.current = false; // Reset for next message
+      botReplyAddedRef.current = false;
     }
-  }, [message, loading, chatLog, typeEffect, selectedFile, botTypingText, selectedPersonality, userMemory]);
+  }, [message, loading, chatLog, typeEffect, selectedFile, botTypingText, selectedPersonality, userMemory, creatorName]);
 
   return (
     <div
