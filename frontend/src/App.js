@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { SunIcon, MoonIcon, PaperAirplaneIcon, StopIcon, PlusIcon } from "@heroicons/react/24/solid";
-// SpeechRecognition imports are still excluded based on your last request
 
 function App() {
   const [message, setMessage] = useState("");
@@ -21,58 +20,108 @@ function App() {
   const botReplyAddedRef = useRef(false);
   const fileInputRef = useRef(null);
 
+  // NEW: Ref to track if the user has scrolled up
+  const isScrolledUpRef = useRef(false);
+
   useEffect(() => {
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
 
+  // Modified useEffect for smart scrolling
   useEffect(() => {
-    if (chatBoxRef.current) {
-      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+    const chatBox = chatBoxRef.current;
+    if (chatBox) {
+      // If user is not scrolled up, or if a new *full* message was just added, scroll to bottom
+      // We check for `loading === false` to ensure a scroll after a response is fully displayed.
+      // And we also scroll when a user sends a message (chatLog.length increases)
+      // or if loading is false and botTypingText is empty (meaning the bot finished typing and the message was added)
+      if (!isScrolledUpRef.current || (chatLog.length > 0 && chatLog[chatLog.length - 1].sender !== 'bot' && !loading) || (!loading && botTypingText === "" && botReplyAddedRef.current)) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
     }
-  }, [chatLog, loading, botTypingText]);
+  }, [chatLog, loading, botTypingText]); // Dependencies remain to react to state changes
+
+  // NEW: useEffect to attach scroll listener
+  useEffect(() => {
+    const chatBox = chatBoxRef.current;
+    if (chatBox) {
+      const handleScroll = () => {
+        // Determine if the user has scrolled up from the very bottom
+        const atBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 1; // A small tolerance
+        isScrolledUpRef.current = !atBottom;
+      };
+
+      chatBox.addEventListener('scroll', handleScroll);
+      // Clean up the event listener when the component unmounts or chatBoxRef changes
+      return () => {
+        chatBox.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, []); // Empty dependency array means this runs once on mount
 
   const typeEffect = useCallback((fullText) => {
     return new Promise((resolve) => {
       let i = 0;
-      setBotTypingText("");
+      setBotTypingText(""); // Start fresh for new typing
       if (typingIntervalRef.current) {
         clearInterval(typingIntervalRef.current);
-        typingIntervalRef.current = null;
       }
       typingIntervalRef.current = setInterval(() => {
-        setBotTypingText((prev) => prev + fullText.charAt(i));
-        i++;
-        if (i >= fullText.length) {
-          clearInterval(typingIntervalRef.current);
-          typingIntervalRef.current = null;
-          resolve();
+        // Check if interval should still run
+        if (!abortControllerRef.current || !abortControllerRef.current.signal.aborted) {
+            setBotTypingText((prev) => prev + fullText.charAt(i));
+            i++;
+            if (i >= fullText.length) {
+                clearInterval(typingIntervalRef.current);
+                typingIntervalRef.current = null;
+                // Add the completed message to chatLog after typing effect finishes
+                if (!botReplyAddedRef.current) {
+                    setChatLog((prev) => [...prev, { sender: "bot", text: fullText, timestamp: new Date() }]);
+                    botReplyAddedRef.current = true;
+                }
+                resolve();
+            }
+        } else {
+            // If aborted during typing, clear interval and resolve
+            clearInterval(typingIntervalRef.current);
+            typingIntervalRef.current = null;
+            resolve();
         }
       }, 30);
     });
   }, []);
 
   const stopTyping = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    // Immediately clear the typing interval
     if (typingIntervalRef.current) {
       clearInterval(typingIntervalRef.current);
       typingIntervalRef.current = null;
     }
+
+    // Abort the fetch request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null; // Clear the ref after aborting
+    }
+
+    // Capture the current botTypingText and add it to chatLog if it's not empty
+    // and hasn't been added yet.
     if (botTypingText.trim() !== "" && !botReplyAddedRef.current) {
       setChatLog((prev) => [...prev, { sender: "bot", text: botTypingText, timestamp: new Date() }]);
-      botReplyAddedRef.current = true;
+      botReplyAddedRef.current = true; // Mark as added
     }
+
+    // Reset loading state and clear typing text
     setLoading(false);
     setBotTypingText("");
-  }, [botTypingText]);
+
+  }, [botTypingText]); // Dependency array for useCallback
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
       setSelectedFile(file);
-      // Optional: Clear message input if a file is selected to focus on file-based prompt
-      setMessage("");
+      setMessage(""); // Optional: Clear message input if a file is selected
     }
   };
 
@@ -100,6 +149,9 @@ function App() {
     setBotTypingText("");
     setMessage("");
     setSelectedFile(null);
+    if (fileInputRef.current) {
+        fileInputRef.current.value = ''; // Clear file input value
+    }
 
     botReplyAddedRef.current = false;
     abortControllerRef.current = new AbortController();
@@ -111,7 +163,7 @@ function App() {
         currentInputParts.push({ text: messageText });
       }
       if (selectedFile) {
-        setBotTypingText("Processing file...");
+        setBotTypingText("Processing file..."); // Show "Processing file..."
         const reader = new FileReader();
         const fileBase64 = await new Promise((resolve, reject) => {
           reader.onloadend = () => resolve(reader.result.split(',')[1]);
@@ -164,10 +216,14 @@ function App() {
         replyText = `Error from API: ${result.error.message}`;
       }
 
-      await typeEffect(replyText);
-
-      botReplyAddedRef.current = true;
-      setChatLog((prev) => [...prev, { sender: "bot", text: replyText, timestamp: new Date() }]);
+      // Check if the signal was aborted before starting typeEffect
+      if (!signal.aborted) {
+        await typeEffect(replyText); // Wait for typing effect to complete
+        // The message is now added within typeEffect when it completes naturally
+      } else {
+        // If aborted before typing, ensure botTypingText is cleared
+        setBotTypingText("");
+      }
 
     } catch (error) {
       if (error.name !== "AbortError") {
@@ -175,27 +231,31 @@ function App() {
         setChatLog((prev) => [...prev, { sender: "bot", text: errorMsg, timestamp: new Date() }]);
       }
     } finally {
+      // Clean up, ensuring the botReplyAddedRef is reset for the next message
+      if (!botReplyAddedRef.current && botTypingText.trim() !== "") {
+          setChatLog((prev) => [...prev, { sender: "bot", text: botTypingText, timestamp: new Date() }]);
+      }
       setLoading(false);
       setBotTypingText("");
       abortControllerRef.current = null;
       typingIntervalRef.current = null;
+      botReplyAddedRef.current = false; // Reset for next message
     }
-    // FIXED: Removed 'stopTyping' from dependency array as it's an unnecessary dependency.
-  }, [message, loading, chatLog, typeEffect, selectedFile]);
-
+  }, [message, loading, chatLog, typeEffect, selectedFile, botTypingText]);
 
   return (
     <div
-      className={`min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 relative font-inter transition-all duration-500 ease-in-out cursor-default
+      className={`min-h-screen flex flex-col items-center justify-between p-4 pb-0 relative font-inter transition-all duration-500 ease-in-out cursor-default
         ${darkMode
           ? "bg-gradient-to-br from-gray-900 to-black text-gray-100"
           : "bg-gradient-to-br from-blue-100 to-purple-200 text-gray-900"
         }`}
     >
+      {/* Dark Mode Toggle */}
       <button
         onClick={() => setDarkMode((prev) => !prev)}
         aria-label="Toggle dark mode"
-        className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all duration-300 transform hover:scale-105 cursor-pointer shadow-lg z-10"
+        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all duration-300 transform hover:scale-105 cursor-pointer shadow-lg z-10"
       >
         {darkMode ? (
           <SunIcon className="h-6 w-6 text-yellow-300" />
@@ -204,29 +264,31 @@ function App() {
         )}
       </button>
 
-      <h1 className="text-5xl font-extrabold mb-8 drop-shadow-lg select-none text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse-light">
+      {/* Title */}
+      <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 sm:mb-8 drop-shadow-lg select-none text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse-light text-center">
         Muse AI
       </h1>
 
+      {/* Chat Box */}
       <div
         ref={chatBoxRef}
-        className={`w-full max-w-3xl h-[500px] sm:h-[600px] overflow-y-auto rounded-3xl shadow-inset-lg p-6 mb-6 scrollbar-hide
+        className={`w-full max-w-3xl flex-1 overflow-y-auto rounded-3xl shadow-inset-lg p-4 sm:p-6 mb-4 sm:mb-6 scrollbar-hide
           ${darkMode ? "bg-gray-800/60" : "bg-white/70"}
-          backdrop-blur-xl space-y-5 border border-transparent
+          backdrop-blur-xl space-y-4 sm:space-y-5 border border-transparent
           ${darkMode ? "border-t-purple-700/50 border-l-blue-700/50" : "border-t-blue-300/50 border-l-purple-300/50"}
           transition-all duration-500 ease-in-out`}
         aria-live="polite"
         tabIndex={0}
       >
         {chatLog.length === 0 && !loading && (
-          <div className="text-center text-gray-400 italic mt-20">
+          <div className="text-center text-gray-400 italic mt-10 sm:mt-20 text-sm sm:text-base">
             Start a conversation with Muse! Your chat history will be saved.
           </div>
         )}
         {chatLog.map((msg, index) => (
           <div
             key={index}
-            className={`flex flex-col max-w-[85%] sm:max-w-[75%] text-base ${
+            className={`flex flex-col max-w-[90%] sm:max-w-[75%] text-sm sm:text-base ${
               msg.sender === "user" ? "ml-auto items-end" : "mr-auto items-start"
             }`}
           >
@@ -238,7 +300,7 @@ function App() {
               {msg.sender === "user" ? "You" : "Muse"}
             </span>
             <div
-              className={`px-5 py-3 rounded-2xl break-words whitespace-pre-wrap shadow-md transform transition-all duration-300 ease-out-back ${
+              className={`px-4 py-2 sm:px-5 sm:py-3 rounded-2xl break-words whitespace-pre-wrap shadow-md transform transition-all duration-300 ease-out-back ${
                 msg.sender === "user"
                   ? "bg-blue-600 text-white"
                   : darkMode
@@ -252,10 +314,10 @@ function App() {
         ))}
 
         {loading && botTypingText && (
-          <div className="flex flex-col max-w-[85%] sm:max-w-[75%] mr-auto items-start text-base">
+          <div className="flex flex-col max-w-[90%] sm:max-w-[75%] mr-auto items-start text-sm sm:text-base">
             <span className={`text-xs font-medium mb-1 opacity-70 ${darkMode ? "text-purple-300" : "text-purple-600"}`}>Muse</span>
             <div
-              className={`px-5 py-3 rounded-2xl italic break-words whitespace-pre-wrap shadow-md ${
+              className={`px-4 py-2 sm:px-5 sm:py-3 rounded-2xl italic break-words whitespace-pre-wrap shadow-md ${
                 darkMode ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-800"
               }`}
             >
@@ -266,7 +328,7 @@ function App() {
         )}
 
         {loading && !botTypingText && (
-          <div className="flex items-center justify-start text-purple-400 text-sm animate-pulse ml-2">
+          <div className="flex items-center justify-start text-purple-400 text-xs sm:text-sm animate-pulse ml-2">
             <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce-dot animation-delay-0"></div>
             <div className="w-2 h-2 bg-purple-400 rounded-full ml-1 animate-bounce-dot animation-delay-100"></div>
             <div className="w-2 h-2 bg-purple-400 rounded-full ml-1 animate-bounce-dot animation-delay-200"></div>
@@ -275,9 +337,10 @@ function App() {
         )}
       </div>
 
-      <div className={`w-full max-w-3xl flex gap-3 p-2 rounded-xl shadow-xl backdrop-blur-lg
+      {/* Input Area */}
+      <div className={`w-full max-w-3xl flex items-center gap-2 sm:gap-3 p-2 rounded-xl shadow-xl backdrop-blur-lg
         ${darkMode ? "bg-gray-800/70 border border-purple-700/50" : "bg-white/80 border border-blue-300/50"}
-        transition-all duration-500 ease-in-out`}>
+        transition-all duration-500 ease-in-out mb-4`}> {/* Added mb-4 for spacing */}
 
         {/* Hidden file input */}
         <input
@@ -293,14 +356,14 @@ function App() {
           onClick={() => fileInputRef.current.click()}
           disabled={loading || !isAuthReady}
           aria-label="Attach file"
-          className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 transform active:scale-95 shadow-lg
+          className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 transform active:scale-95 shadow-lg
             ${darkMode
               ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300"
             }
             disabled:opacity-40 disabled:cursor-not-allowed`}
         >
-          <PlusIcon className="h-6 w-6" />
+          <PlusIcon className="h-5 w-5 sm:h-6 sm:w-6" />
         </button>
 
         <input
@@ -308,11 +371,17 @@ function App() {
           value={message}
           placeholder={"Type your message to Muse..."}
           onChange={(e) => setMessage(e.target.value)}
-          // FIXED: Added parentheses to clarify the order of operations for '&&' and '||'
-          onKeyDown={(e) => (e.key === "Enter" && ((!message.trim() && !selectedFile) || loading)) ? null : (e.key === "Enter" && sendMessage())}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              // Only trigger sendMessage if not already loading and there's content or a file
+              if (!loading && (message.trim() || selectedFile)) {
+                sendMessage();
+              }
+            }
+          }}
           disabled={loading || !isAuthReady}
           aria-label="Type your message"
-          className={`flex-1 px-5 py-3 rounded-xl border-none focus:outline-none focus:ring-0 placeholder-gray-400
+          className={`flex-1 px-3 py-2 sm:px-5 sm:py-3 rounded-xl border-none focus:outline-none focus:ring-0 placeholder-gray-400 text-sm sm:text-base
             ${darkMode
               ? "bg-gray-700/50 text-gray-100 caret-purple-400 focus:bg-gray-700"
               : "bg-white/70 text-gray-900 caret-blue-600 focus:bg-white"}
@@ -320,9 +389,9 @@ function App() {
         />
         <button
           onClick={loading ? stopTyping : sendMessage}
-          disabled={(!message.trim() && !selectedFile) || loading || !isAuthReady}
+          disabled={(!message.trim() && !selectedFile && !loading) || !isAuthReady} // Disabled if nothing to send AND not already loading
           aria-label={loading ? "Stop generating response" : "Send message"}
-          className={`flex-shrink-0 px-6 py-3 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg
+          className={`flex-shrink-0 px-4 py-2 sm:px-6 sm:py-3 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg text-sm sm:text-base
             ${loading
               ? darkMode
                 ? "bg-red-600 text-white hover:bg-red-500 animate-pulse"
@@ -333,15 +402,16 @@ function App() {
             disabled:opacity-40 disabled:cursor-not-allowed`}
         >
           {loading ? (
-            <StopIcon className="h-5 w-5 inline-block mr-1" />
+            <StopIcon className="h-5 w-5 inline-block sm:mr-1" />
           ) : (
-            <PaperAirplaneIcon className="h-5 w-5 inline-block mr-1 transform rotate-90" />
+            // CORRECTED: Removed `transform rotate-90`
+            <PaperAirplaneIcon className="h-5 w-5 inline-block sm:mr-1" />
           )}
-          {loading ? "Stop" : "Send"}
+          <span className="hidden sm:inline">{loading ? "Stop" : "Send"}</span>
         </button>
       </div>
       {selectedFile && (
-          <div className="flex items-center justify-center space-x-2 bg-gray-200 dark:bg-gray-700 p-2 rounded-lg text-sm mt-2">
+          <div className="flex items-center justify-center space-x-2 bg-gray-200 dark:bg-gray-700 p-2 rounded-lg text-xs sm:text-sm mt-2 mb-4">
             <span className={darkMode ? "text-gray-200" : "text-gray-700"}>
               {selectedFile.type.startsWith('image/') ? 'Image' : 'File'}: {selectedFile.name}
             </span>
