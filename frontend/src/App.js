@@ -180,7 +180,8 @@ function App() {
       abortControllerRef.current = null;
       typingIntervalRef.current = null;
     }
-  }, [message, loading, chatLog, typeEffect, stopTyping, selectedFile]);
+    // FIXED: Removed 'stopTyping' from dependency array as it's an unnecessary dependency.
+  }, [message, loading, chatLog, typeEffect, selectedFile]);
 
 
   return (
@@ -307,7 +308,8 @@ function App() {
           value={message}
           placeholder={"Type your message to Muse..."}
           onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (!message.trim() && !selectedFile || loading) ? null : (e.key === "Enter" && sendMessage())}
+          // FIXED: Added parentheses to clarify the order of operations for '&&' and '||'
+          onKeyDown={(e) => (e.key === "Enter" && ((!message.trim() && !selectedFile) || loading)) ? null : (e.key === "Enter" && sendMessage())}
           disabled={loading || !isAuthReady}
           aria-label="Type your message"
           className={`flex-1 px-5 py-3 rounded-xl border-none focus:outline-none focus:ring-0 placeholder-gray-400

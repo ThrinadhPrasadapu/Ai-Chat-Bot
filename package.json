@@ -1,17 +1,12 @@
 {
-  "name": "your-project-name",
+  "name": "python-project-2-root",
   "version": "1.0.0",
+  "private": true,
+  "homepage": "https://markdennis2121.github.io/ChatBot/",
   "scripts": {
-    "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --minify",
-    "watch:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
+    "deploy-frontend": "npm run build --prefix frontend && gh-pages -d frontend/build"
   },
   "devDependencies": {
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.4",
-    "tailwindcss": "^4.1.8"
-  },
-  "dependencies": {
-    "firebase": "^11.9.0",
-    "react-speech-recognition": "^4.0.1"
+    "gh-pages": "^6.3.0"
   }
 }
